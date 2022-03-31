@@ -320,19 +320,19 @@ abstract contract ERC20Lockable is ERC20, Ownable {
     }
 
     function _unlock(address from, uint256 index) internal returns (bool success) {
-        LockInfo storage lock = _locks[from][index];
-        _totalLocked[from] = _totalLocked[from] - lock._amount;
-        emit Unlock(from, lock._amount);
+        LockInfo storage info = _locks[from][index];
+        _totalLocked[from] = _totalLocked[from] - info._amount;
+        emit Unlock(from, info._amount);
         _locks[from][index] = _locks[from][_locks[from].length - 1];
         _locks[from].pop();
         success = true;
     }
 
-    function lock(address recipient, uint256 amount, uint256 releaseTime) public onlyOwner returns (bool) {
+    function lock(address recipient, uint256 amount, uint256 releaseTime) public onlyOwner returns (bool success) {
         require(_balances[recipient] >= amount, "There is not enough balance of holder.");
         _lock(recipient, amount, releaseTime);
 
-        return true;
+        success = true;
     }
 
     function autoUnlock(address from) public returns (bool success) {
@@ -370,9 +370,9 @@ abstract contract ERC20Lockable is ERC20, Ownable {
 
     function lockInfo(address locked, uint256 index) public view returns (uint256 releaseTime, uint256 amount)
     {
-        LockInfo memory lock = _locks[locked][index];
-        releaseTime = lock._releaseTime;
-        amount = lock._amount;
+        LockInfo memory info = _locks[locked][index];
+        releaseTime = info._releaseTime;
+        amount = info._amount;
     }
 
     function totalLocked(address locked) public view returns (uint256 amount, uint256 length){
@@ -382,8 +382,6 @@ abstract contract ERC20Lockable is ERC20, Ownable {
 }
 
 contract Crayon is ERC20, Pausable, Freezable, ERC20Burnable, ERC20Lockable {
-
-    address public implementation;
 
     constructor() ERC20("Crayon", "CRAY") {
         _mint(msg.sender, 10000000000 * (10 ** decimals()));
@@ -437,30 +435,5 @@ contract Crayon is ERC20, Pausable, Freezable, ERC20Burnable, ERC20Lockable {
 
     function _beforeTokenTransfer(address from, address to, uint256 amount) internal whenNotPaused whenNotFrozen(from) override {
         super._beforeTokenTransfer(from, to, amount);
-    }
-
-    function upgradeTo(address _newImplementation) public onlyOwner {
-        require(implementation != _newImplementation);
-        _setImplementation(_newImplementation);
-    }
-
-    function _setImplementation(address _newImp) internal {
-        implementation = _newImp;
-    }
-
-    fallback () payable external {
-        address impl = implementation;
-        require(impl != address(0));
-        assembly {
-            let ptr := mload(0x40)
-            calldatacopy(ptr, 0, calldatasize())
-            let result := delegatecall(gas(), impl, ptr, calldatasize(), 0, 0)
-            let size := returndatasize()
-            returndatacopy(ptr, 0, size)
-
-            switch result
-            case 0 { revert(ptr, size) }
-            default { return(ptr, size) }
-        }
     }
 }
